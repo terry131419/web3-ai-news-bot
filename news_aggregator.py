@@ -21,7 +21,6 @@ def translate_text(text, target_lang='zh-CN'):
         return text
 
 def get_gnews_news(query, api_key, page_size=20):
-    """从 GNews API 获取新闻"""
     try:
         url = "https://gnews.io/api/v4/search"
         params = {
@@ -34,7 +33,6 @@ def get_gnews_news(query, api_key, page_size=20):
         response = requests.get(url, params=params, timeout=10)
         if response.status_code == 200:
             articles = response.json().get('articles', [])
-            # 转换为标准格式
             converted = []
             for article in articles:
                 converted.append({
@@ -50,7 +48,6 @@ def get_gnews_news(query, api_key, page_size=20):
         return []
 
 def deduplicate_articles(articles, limit=10):
-    """去重并限制数量"""
     seen_titles = set()
     unique = []
     for article in articles:
@@ -61,6 +58,51 @@ def deduplicate_articles(articles, limit=10):
             if len(unique) >= limit:
                 break
     return unique[:limit]
+
+def send_to_telegram(bot_token, chat_id, message):
+    """发送消息到 Telegram，处理分割"""
+    tg_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    MAX_LEN = 4090
+    
+    # 确保 chat_id 是字符串
+    chat_id_str = str(chat_id)
+    
+    # 分割消息
+    parts = []
+    current = ""
+    for line in message.split('\n'):
+        if len(current) + len(line) + 1 > MAX_LEN:
+            if current:
+                parts.append(current)
+            current = line
+        else:
+            current += line + '\n'
+    if current:
+        parts.append(current)
+    
+    # 发送每个部分
+    success_count = 0
+    for i, part in enumerate(parts, 1):
+        try:
+            payload = {
+                'chat_id': chat_id_str,
+                'text': part,
+                'parse_mode': 'HTML'
+            }
+            r = requests.post(tg_url, json=payload, timeout=10)
+            result = r.json()
+            
+            if result.get('ok'):
+                print(f"✅ Part {i}/{len(parts)} sent successfully")
+                success_count += 1
+            else:
+                print(f"❌ Part {i} failed: {result.get('description')}")
+                print(f"   Chat ID: {chat_id_str}")
+                print(f"   Error: {result}")
+        except Exception as e:
+            print(f"❌ Part {i} error: {e}")
+    
+    return success_count == len(parts)
 
 def main():
     bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
@@ -85,9 +127,9 @@ def main():
         time_str = now.strftime('%H:%M:%S')
         
         print(f"[START] {date_str} {time_str} UTC+8")
+        print(f"Chat IDs: Web3={web3_chat_id}, AI={ai_chat_id}, Economy={economy_chat_id}")
         print("[1/4] Fetching Web3 news from GNews...")
         
-        # Web3 新闻
         web3_queries = [
             'bitcoin OR ethereum OR blockchain OR crypto OR Web3 OR NFT OR DeFi',
             'cryptocurrency market OR crypto trading OR blockchain technology',
@@ -104,7 +146,6 @@ def main():
         
         print("[2/4] Fetching AI news from GNews...")
         
-        # AI 新闻
         ai_queries = [
             'artificial intelligence OR AI OR machine learning OR deep learning',
             'ChatGPT OR language model OR neural network OR LLM',
@@ -121,7 +162,6 @@ def main():
         
         print("[3/4] Fetching Economy news from GNews...")
         
-        # 经济新闻
         economy_queries = [
             'economy OR finance OR stock market OR economic news',
             'war OR conflict OR geopolitics OR international tension',
@@ -138,7 +178,6 @@ def main():
         
         print("[4/4] Translating and sending...")
         
-        # 翻译 Web3
         web3_data = []
         for article in web3_news:
             title_cn = translate_text(article['title'])
@@ -152,7 +191,6 @@ def main():
                 'summary_en': summary, 'summary_cn': summary_cn
             })
         
-        # 翻译 AI
         ai_data = []
         for article in ai_news:
             title_cn = translate_text(article['title'])
@@ -166,7 +204,6 @@ def main():
                 'summary_en': summary, 'summary_cn': summary_cn
             })
         
-        # 翻译经济
         economy_data = []
         for article in economy_news:
             title_cn = translate_text(article['title'])
@@ -180,41 +217,29 @@ def main():
                 'summary_en': summary, 'summary_cn': summary_cn
             })
         
-        tg_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        
-        # Web3
+        # 发送 Web3
         web3_msg = f"📱 WEB3 & BLOCKCHAIN NEWS (Top 10)\n📅 {date_str} | ⏰ {time_str} (UTC+8)\n" + "=" * 50 + "\n\n"
         for i, n in enumerate(web3_data, 1):
             web3_msg += f"[{i}] {n['title_en']}\n    {n['title_cn']}\n    Source: {n['source']}\n    Link: {n['url']}\n    摘要: {n['summary_cn']}\n\n"
         
-        MAX_LEN = 4090
-        for i in range(0, len(web3_msg), MAX_LEN):
-            part = web3_msg[i:i+MAX_LEN]
-            r = requests.post(tg_url, json={'chat_id': web3_chat_id, 'text': part}, timeout=10)
-            if r.json().get('ok'):
-                print("✅ Web3 sent")
+        print("Sending Web3...")
+        send_to_telegram(bot_token, web3_chat_id, web3_msg)
         
-        # AI
+        # 发送 AI
         ai_msg = f"🤖 AI & TECHNOLOGY NEWS (Top 10)\n📅 {date_str} | ⏰ {time_str} (UTC+8)\n" + "=" * 50 + "\n\n"
         for i, n in enumerate(ai_data, 1):
             ai_msg += f"[{i}] {n['title_en']}\n    {n['title_cn']}\n    Source: {n['source']}\n    Link: {n['url']}\n    摘要: {n['summary_cn']}\n\n"
         
-        for i in range(0, len(ai_msg), MAX_LEN):
-            part = ai_msg[i:i+MAX_LEN]
-            r = requests.post(tg_url, json={'chat_id': ai_chat_id, 'text': part}, timeout=10)
-            if r.json().get('ok'):
-                print("✅ AI sent")
+        print("Sending AI...")
+        send_to_telegram(bot_token, ai_chat_id, ai_msg)
         
-        # Economy
+        # 发送经济
         econ_msg = f"💰 GLOBAL ECONOMY & FINANCE NEWS (Top 10)\n📅 {date_str} | ⏰ {time_str} (UTC+8)\n" + "=" * 50 + "\n\n"
         for i, n in enumerate(economy_data, 1):
             econ_msg += f"[{i}] {n['title_en']}\n    {n['title_cn']}\n    Source: {n['source']}\n    Link: {n['url']}\n    摘要: {n['summary_cn']}\n\n"
         
-        for i in range(0, len(econ_msg), MAX_LEN):
-            part = econ_msg[i:i+MAX_LEN]
-            r = requests.post(tg_url, json={'chat_id': economy_chat_id, 'text': part}, timeout=10)
-            if r.json().get('ok'):
-                print("✅ Economy sent")
+        print("Sending Economy...")
+        send_to_telegram(bot_token, economy_chat_id, econ_msg)
         
         print(f"\n✅ SUCCESS! All news sent at {time_str} UTC+8")
         return 0
