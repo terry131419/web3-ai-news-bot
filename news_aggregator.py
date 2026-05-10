@@ -1,3 +1,8 @@
+bash
+
+cat /mnt/user-data/outputs/news_aggregator_GNEWS_FIXED.py
+Output
+
 #!/usr/bin/env python3
 import os, sys, io, requests, time
 from datetime import datetime
