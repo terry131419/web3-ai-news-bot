@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import os, sys, io, requests, time
+from datetime import datetime
+import pytz
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -28,9 +30,16 @@ def main():
         return 1
     
     try:
+        tz = pytz.timezone('Asia/Shanghai')
+        now = datetime.now(tz)
+        date_str = now.strftime('%Y-%m-%d')
+        time_str = now.strftime('%H:%M:%S')
+        
+        print(f"[START] {date_str} {time_str} UTC+8")
         print("[1/4] Fetching news from NewsAPI...")
         
         web3_url = "https://newsapi.org/v2/everything"
+        
         web3_params = {'q': 'bitcoin OR ethereum OR blockchain OR crypto OR Web3', 'sortBy': 'relevancy', 'language': 'en', 'apiKey': news_api_key, 'pageSize': 10}
         web3_response = requests.get(web3_url, params=web3_params, timeout=10)
         web3_news = web3_response.json().get('articles', []) if web3_response.status_code == 200 else []
@@ -39,15 +48,15 @@ def main():
         ai_response = requests.get(web3_url, params=ai_params, timeout=10)
         ai_news = ai_response.json().get('articles', []) if ai_response.status_code == 200 else []
         
-        world_params = {'q': 'world news OR breaking news OR international', 'sortBy': 'publishedAt', 'language': 'en', 'apiKey': news_api_key, 'pageSize': 10}
-        world_response = requests.get(web3_url, params=world_params, timeout=10)
-        world_news = world_response.json().get('articles', []) if world_response.status_code == 200 else []
+        economy_params = {'q': 'economy OR finance OR stock market OR war OR conflict OR geopolitics OR global market OR sanctions OR inflation OR recession OR interest rate', 'sortBy': 'relevancy', 'language': 'en', 'apiKey': news_api_key, 'pageSize': 10}
+        economy_response = requests.get(web3_url, params=economy_params, timeout=10)
+        economy_news = economy_response.json().get('articles', []) if economy_response.status_code == 200 else []
         
-        print(f"OK - Fetched {len(web3_news)} Web3, {len(ai_news)} AI, {len(world_news)} world news")
+        print(f"OK - Fetched {len(web3_news)} Web3, {len(ai_news)} AI, {len(economy_news)} economy news")
         
         print("[2/4] Translating titles and summaries...")
         
-        news_data = {'web3': [], 'ai': [], 'world': []}
+        news_data = {'web3': [], 'ai': [], 'economy': []}
         
         for article in web3_news[:5]:
             print(".", end="", flush=True)
@@ -75,14 +84,14 @@ def main():
                 'summary_en': summary, 'summary_cn': summary_cn
             })
         
-        for article in world_news[:5]:
+        for article in economy_news[:5]:
             print(".", end="", flush=True)
             title_cn = translate_text(article['title'])
             time.sleep(0.2)
             summary = article.get('description', 'N/A')[:150]
             summary_cn = translate_text(summary)
             time.sleep(0.2)
-            news_data['world'].append({
+            news_data['economy'].append({
                 'title_en': article['title'], 'title_cn': title_cn,
                 'source': article['source']['name'], 'url': article['url'],
                 'summary_en': summary, 'summary_cn': summary_cn
@@ -92,7 +101,9 @@ def main():
         
         print("[3/4] Formatting news...")
         
-        final_news = "📰 Daily Web3, AI & International News\n" + "=" * 50 + "\n\n"
+        final_news = f"📰 Daily Web3, AI & Global Economy News\n"
+        final_news += f"📅 {date_str} | ⏰ {time_str} (UTC+8)\n"
+        final_news += "=" * 50 + "\n\n"
         
         final_news += "📱 WEB3 & BLOCKCHAIN NEWS (Top 5)\n\n"
         for i, n in enumerate(news_data['web3'], 1):
@@ -102,8 +113,8 @@ def main():
         for i, n in enumerate(news_data['ai'], 1):
             final_news += f"[{i}] {n['title_en']}\n    {n['title_cn']}\n    Source: {n['source']}\n    Link: {n['url']}\n    Summary: {n['summary_en']}\n    摘要: {n['summary_cn']}\n\n"
         
-        final_news += "\n🌍 INTERNATIONAL NEWS (Top 5)\n\n"
-        for i, n in enumerate(news_data['world'], 1):
+        final_news += "\n💰 GLOBAL ECONOMY & FINANCE NEWS (Top 5)\n\n"
+        for i, n in enumerate(news_data['economy'], 1):
             final_news += f"[{i}] {n['title_en']}\n    {n['title_cn']}\n    Source: {n['source']}\n    Link: {n['url']}\n    Summary: {n['summary_en']}\n    摘要: {n['summary_cn']}\n\n"
         
         print("OK - News formatted")
@@ -136,7 +147,7 @@ def main():
             else:
                 return 1
         
-        print("\n✅ SUCCESS! Complete bilingual news sent to Telegram!")
+        print(f"\n✅ SUCCESS! News sent at {time_str} UTC+8")
         return 0
         
     except Exception as e:
