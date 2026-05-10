@@ -20,16 +20,37 @@ def translate_text(text, target_lang='zh-CN'):
     except:
         return text
 
-def get_newsapi_news(query, api_key, page_size=20):
+def get_gnews_news(query, api_key, page_size=20):
+    """从 GNews API 获取新闻"""
     try:
-        url = "https://newsapi.org/v2/everything"
-        params = {'q': query, 'sortBy': 'relevancy', 'language': 'en', 'apiKey': api_key, 'pageSize': page_size}
+        url = "https://gnews.io/api/v4/search"
+        params = {
+            'q': query,
+            'lang': 'en',
+            'sortby': 'relevancy',
+            'max': page_size,
+            'apikey': api_key
+        }
         response = requests.get(url, params=params, timeout=10)
-        return response.json().get('articles', []) if response.status_code == 200 else []
-    except:
+        if response.status_code == 200:
+            articles = response.json().get('articles', [])
+            # 转换为标准格式
+            converted = []
+            for article in articles:
+                converted.append({
+                    'title': article.get('title', ''),
+                    'description': article.get('description', ''),
+                    'url': article.get('url', ''),
+                    'source': {'name': article.get('source', {}).get('name', 'GNews')}
+                })
+            return converted
+        return []
+    except Exception as e:
+        print(f"GNews error: {e}")
         return []
 
 def deduplicate_articles(articles, limit=10):
+    """去重并限制数量"""
     seen_titles = set()
     unique = []
     for article in articles:
@@ -46,15 +67,15 @@ def main():
     web3_chat_id = os.getenv('TELEGRAM_WEB3_CHAT_ID', '').strip()
     ai_chat_id = os.getenv('TELEGRAM_AI_CHAT_ID', '').strip()
     economy_chat_id = os.getenv('TELEGRAM_ECONOMY_CHAT_ID', '').strip()
-    news_api_key = os.getenv('NEWS_API_KEY', '').strip()
+    gnews_api_key = os.getenv('GNEWS_API_KEY', '').strip()
     
-    if not all([bot_token, web3_chat_id, ai_chat_id, economy_chat_id, news_api_key]):
+    if not all([bot_token, web3_chat_id, ai_chat_id, economy_chat_id, gnews_api_key]):
         print("ERROR: Missing required credentials")
         print(f"bot_token: {'✓' if bot_token else '✗'}")
         print(f"web3_chat_id: {'✓' if web3_chat_id else '✗'}")
         print(f"ai_chat_id: {'✓' if ai_chat_id else '✗'}")
         print(f"economy_chat_id: {'✓' if economy_chat_id else '✗'}")
-        print(f"news_api_key: {'✓' if news_api_key else '✗'}")
+        print(f"gnews_api_key: {'✓' if gnews_api_key else '✗'}")
         return 1
     
     try:
@@ -64,36 +85,60 @@ def main():
         time_str = now.strftime('%H:%M:%S')
         
         print(f"[START] {date_str} {time_str} UTC+8")
-        print("[1/4] Fetching Web3 news...")
+        print("[1/4] Fetching Web3 news from GNews...")
         
-        web3_queries = ['bitcoin OR ethereum OR blockchain OR crypto OR Web3 OR NFT OR DeFi', 'cryptocurrency market', 'Bitcoin OR Ethereum']
+        # Web3 新闻
+        web3_queries = [
+            'bitcoin OR ethereum OR blockchain OR crypto OR Web3 OR NFT OR DeFi',
+            'cryptocurrency market OR crypto trading OR blockchain technology',
+            'Bitcoin OR Ethereum OR altcoin'
+        ]
+        
         web3_articles = []
         for query in web3_queries:
-            web3_articles.extend(get_newsapi_news(query, news_api_key, 10))
+            web3_articles.extend(get_gnews_news(query, gnews_api_key, 10))
             time.sleep(0.5)
+        
         web3_news = deduplicate_articles(web3_articles, limit=10)
         print(f"✓ Fetched {len(web3_news)} Web3 articles")
         
-        print("[2/4] Fetching AI news...")
-        ai_queries = ['artificial intelligence OR AI OR machine learning', 'ChatGPT OR language model', 'AI technology']
+        print("[2/4] Fetching AI news from GNews...")
+        
+        # AI 新闻
+        ai_queries = [
+            'artificial intelligence OR AI OR machine learning OR deep learning',
+            'ChatGPT OR language model OR neural network OR LLM',
+            'AI technology OR AI news OR artificial intelligence'
+        ]
+        
         ai_articles = []
         for query in ai_queries:
-            ai_articles.extend(get_newsapi_news(query, news_api_key, 10))
+            ai_articles.extend(get_gnews_news(query, gnews_api_key, 10))
             time.sleep(0.5)
+        
         ai_news = deduplicate_articles(ai_articles, limit=10)
         print(f"✓ Fetched {len(ai_news)} AI articles")
         
-        print("[3/4] Fetching Economy news...")
-        economy_queries = ['economy OR finance OR stock market', 'war OR conflict OR geopolitics', 'global market OR sanctions']
+        print("[3/4] Fetching Economy news from GNews...")
+        
+        # 经济新闻
+        economy_queries = [
+            'economy OR finance OR stock market OR economic news',
+            'war OR conflict OR geopolitics OR international tension',
+            'global market OR sanctions OR inflation OR interest rate OR recession'
+        ]
+        
         economy_articles = []
         for query in economy_queries:
-            economy_articles.extend(get_newsapi_news(query, news_api_key, 10))
+            economy_articles.extend(get_gnews_news(query, gnews_api_key, 10))
             time.sleep(0.5)
+        
         economy_news = deduplicate_articles(economy_articles, limit=10)
         print(f"✓ Fetched {len(economy_news)} Economy articles")
         
         print("[4/4] Translating and sending...")
         
+        # 翻译 Web3
         web3_data = []
         for article in web3_news:
             title_cn = translate_text(article['title'])
@@ -107,6 +152,7 @@ def main():
                 'summary_en': summary, 'summary_cn': summary_cn
             })
         
+        # 翻译 AI
         ai_data = []
         for article in ai_news:
             title_cn = translate_text(article['title'])
@@ -120,6 +166,7 @@ def main():
                 'summary_en': summary, 'summary_cn': summary_cn
             })
         
+        # 翻译经济
         economy_data = []
         for article in economy_news:
             title_cn = translate_text(article['title'])
