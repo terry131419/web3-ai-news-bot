@@ -64,6 +64,7 @@ def main():
         time_str = now.strftime('%H:%M:%S')
         
         print(f"[START] {date_str} {time_str} UTC+8")
+        print("[1/4] Fetching Web3 news...")
         
         web3_queries = ['bitcoin OR ethereum OR blockchain OR crypto OR Web3 OR NFT OR DeFi', 'cryptocurrency market', 'Bitcoin OR Ethereum']
         web3_articles = []
@@ -73,6 +74,7 @@ def main():
         web3_news = deduplicate_articles(web3_articles, limit=10)
         print(f"✓ Fetched {len(web3_news)} Web3 articles")
         
+        print("[2/4] Fetching AI news...")
         ai_queries = ['artificial intelligence OR AI OR machine learning', 'ChatGPT OR language model', 'AI technology']
         ai_articles = []
         for query in ai_queries:
@@ -81,6 +83,7 @@ def main():
         ai_news = deduplicate_articles(ai_articles, limit=10)
         print(f"✓ Fetched {len(ai_news)} AI articles")
         
+        print("[3/4] Fetching Economy news...")
         economy_queries = ['economy OR finance OR stock market', 'war OR conflict OR geopolitics', 'global market OR sanctions']
         economy_articles = []
         for query in economy_queries:
@@ -89,7 +92,7 @@ def main():
         economy_news = deduplicate_articles(economy_articles, limit=10)
         print(f"✓ Fetched {len(economy_news)} Economy articles")
         
-        print("[TRANSLATE] Processing...")
+        print("[4/4] Translating and sending...")
         
         web3_data = []
         for article in web3_news:
@@ -130,8 +133,6 @@ def main():
                 'summary_en': summary, 'summary_cn': summary_cn
             })
         
-        print("[SEND] Sending to Telegram...")
-        
         tg_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         
         # Web3
@@ -140,8 +141,8 @@ def main():
             web3_msg += f"[{i}] {n['title_en']}\n    {n['title_cn']}\n    Source: {n['source']}\n    Link: {n['url']}\n    摘要: {n['summary_cn']}\n\n"
         
         MAX_LEN = 4090
-        parts = [web3_msg[i:i+MAX_LEN] for i in range(0, len(web3_msg), MAX_LEN)]
-        for part in parts:
+        for i in range(0, len(web3_msg), MAX_LEN):
+            part = web3_msg[i:i+MAX_LEN]
             r = requests.post(tg_url, json={'chat_id': web3_chat_id, 'text': part}, timeout=10)
             if r.json().get('ok'):
                 print("✅ Web3 sent")
@@ -151,8 +152,8 @@ def main():
         for i, n in enumerate(ai_data, 1):
             ai_msg += f"[{i}] {n['title_en']}\n    {n['title_cn']}\n    Source: {n['source']}\n    Link: {n['url']}\n    摘要: {n['summary_cn']}\n\n"
         
-        parts = [ai_msg[i:i+MAX_LEN] for i in range(0, len(ai_msg), MAX_LEN)]
-        for part in parts:
+        for i in range(0, len(ai_msg), MAX_LEN):
+            part = ai_msg[i:i+MAX_LEN]
             r = requests.post(tg_url, json={'chat_id': ai_chat_id, 'text': part}, timeout=10)
             if r.json().get('ok'):
                 print("✅ AI sent")
@@ -162,8 +163,8 @@ def main():
         for i, n in enumerate(economy_data, 1):
             econ_msg += f"[{i}] {n['title_en']}\n    {n['title_cn']}\n    Source: {n['source']}\n    Link: {n['url']}\n    摘要: {n['summary_cn']}\n\n"
         
-        parts = [econ_msg[i:i+MAX_LEN] for i in range(0, len(econ_msg), MAX_LEN)]
-        for part in parts:
+        for i in range(0, len(econ_msg), MAX_LEN):
+            part = econ_msg[i:i+MAX_LEN]
             r = requests.post(tg_url, json={'chat_id': economy_chat_id, 'text': part}, timeout=10)
             if r.json().get('ok'):
                 print("✅ Economy sent")
@@ -173,6 +174,8 @@ def main():
         
     except Exception as e:
         print(f"ERROR: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 if __name__ == "__main__":
